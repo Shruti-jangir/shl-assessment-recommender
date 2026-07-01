@@ -28,7 +28,12 @@ app.add_middleware(
 
 retriever = CatalogRetriever()
 
-MAX_CLARIFY_ROUNDS = 2  # after this many clarifying turns, force a shortlist
+MAX_CLARIFY_ROUNDS = 1  # after this many clarifying turns, force a shortlist.
+# Lowered from 2 after real behavior-probe testing showed the LLM's own
+# intent classification can be overly conservative about moving to
+# "ready_to_recommend" even once role + a real differentiator (seniority,
+# duration, language) are already established — this deterministic
+# backstop guarantees the agent doesn't clarify indefinitely.
 DEFAULT_TOP_K = 10  # grading metric is explicitly Recall@10; use the full
                      # ceiling the spec allows so a relevant item is never
                      # truncated out purely for lack of room
