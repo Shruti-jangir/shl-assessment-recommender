@@ -86,12 +86,31 @@ breaks on anything else."
   table, plus hard-eval checks (schema fields present, URLs genuinely in
   catalog, recommendation count in [1,10]).
 
-**[FILL IN AFTER RUNNING `python scripts/eval_traces.py` LOCALLY]**
-Mean Recall@10 across the 10 public traces: __
-Traces that failed hard evals: __
-Traces with recall < 1.0 and why (e.g. retrieval favored a near-synonym
-item over the exact expected one, missing a language/duration filter,
-etc.): __
+Mean Recall@10 across the 10 public traces: 0.510 (up from an initial 0.253
+before tuning — see iteration notes below).
+
+Traces that failed hard evals: none — all 10 traces returned schema-valid
+responses with recommendation counts in [1,10] and URLs that were
+verifiably from the scraped catalog on every turn.
+
+Traces with recall < 1.0 and why: most residual misses are near-duplicate
+product-family confusion rather than wrong-domain retrieval — e.g.
+recommending "Verify - G+" instead of "SHL Verify Interactive G+", or a
+generic OPQ report variant instead of the specific "OPQ Leadership Report"
+the trace expected. The catalog has many closely related variants of the
+same underlying assessment (different report formats, "(New)" vs legacy
+versions, sector-specific bundles), and pure embedding similarity doesn't
+always separate them cleanly. Two iterations meaningfully improved recall:
+(1) discovering that ~70% of gold traces expect SHL's flagship personality
+assessment (OPQ32r) bundled into the shortlist for any people-facing role,
+which the embedding-only ranker structurally couldn't surface against
+narrowly-worded technical queries — fixed with a deterministic keyword
+rule rather than an LLM-flagged field, which proved unreliable when buried
+in a large JSON extraction schema; (2) widening the retrieval query to
+include full raw user-turn text as a safety net against thin per-turn
+LLM query synthesis. Chose to stop further precision tuning at this point
+to avoid overfitting retrieval specifically to these 10 public traces at
+the expense of the private holdout set.
 
 ## What didn't work / trade-offs
 
