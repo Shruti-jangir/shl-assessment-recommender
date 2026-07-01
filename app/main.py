@@ -164,12 +164,30 @@ def chat(req: ChatRequest):
     if not query:
         query = messages[-1].content
 
+    # Deterministic safety net for exclusions: the LLM's exclude_names
+    # extraction field was found unreliable in testing (dropped under a
+    # large JSON schema, same failure mode as include_personality_complement
+    # previously). Directly scan the latest user message for an exclusion
+    # verb plus a catalog item name, so "remove X" is honored even if
+    # extraction missed it.
+    NEGATION_VERBS = [
+        "remove", "drop", "exclude", "delete", "without", "don't need",
+        "do not need", "no longer", "take out", "cut",
+    ]
+    last_user_msg = messages[-1].content.lower() if messages[-1].role == "user" else ""
+    extra_excludes = []
+    if any(v in last_user_msg for v in NEGATION_VERBS):
+        for item in retriever.catalog:
+            if item["name"].lower() in last_user_msg:
+                extra_excludes.append(item["name"])
+    exclude_names_combined = list(set((state.get("exclude_names") or []) + extra_excludes))
+    
     results = retriever.search(
         query=query,
         top_k=DEFAULT_TOP_K,
         test_types=state.get("test_types_wanted") or None,
         max_duration_minutes=state.get("max_duration_minutes"),
-        exclude_names=state.get("exclude_names") or None,
+        exclude_names=exclude_names_combined or None,
     )
     
     # SHL's flagship personality assessment is conventionally bundled into
@@ -203,7 +221,7 @@ def chat(req: ChatRequest):
     ])).lower()
     should_consider_opq = not any(neg in combined_context for neg in NEGATIVE_PERSONALITY_KEYWORDS)
 
-    exclude_lower = {n.lower() for n in (state.get("exclude_names") or [])}
+    exclude_lower = {n.lower() for n in exclude_names_combined}
     if (
         should_consider_opq
         and "occupational personality questionnaire opq32r" not in exclude_lower
