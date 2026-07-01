@@ -112,6 +112,14 @@ LLM query synthesis. Chose to stop further precision tuning at this point
 to avoid overfitting retrieval specifically to these 10 public traces at
 the expense of the private holdout set.
 
+Behavior probes (scripts/behavior_probes.py, run against the live deployed
+endpoint): 9/9 passing — refusal accuracy (off-topic, legal advice, prompt
+injection), no premature recommendation on a vague first turn, recommends
+once sufficient context is given, refine correctly honors explicit
+exclusion requests, compare answers are grounded and non-empty, all
+returned URLs verified against the scraped catalog, and the 8-turn cap
+is respected.
+
 ## What didn't work / trade-offs
 
 - An earlier version let the extraction call directly propose catalog
