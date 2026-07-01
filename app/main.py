@@ -167,19 +167,35 @@ def chat(req: ChatRequest):
     # Deterministic safety net for exclusions: the LLM's exclude_names
     # extraction field was found unreliable in testing (dropped under a
     # large JSON schema, same failure mode as include_personality_complement
-    # previously). Directly scan the latest user message for an exclusion
-    # verb plus a catalog item name, so "remove X" is honored even if
-    # extraction missed it.
+    # previously). Directly scan for a negation verb followed by a catalog
+    # item name, so "remove X" is honored even if extraction missed it.
+    # Scoped to the text between the verb and the next sentence boundary
+    # (not the whole message) — otherwise an item name mentioned later in
+    # the same message for a DIFFERENT reason (e.g. "Drop the OPQ. Final
+    # list: Verify G+ and Graduate Scenarios.") gets wrongly excluded just
+    # because a negation word appears anywhere earlier in the message.
     NEGATION_VERBS = [
         "remove", "drop", "exclude", "delete", "without", "don't need",
         "do not need", "no longer", "take out", "cut",
     ]
     last_user_msg = messages[-1].content.lower() if messages[-1].role == "user" else ""
     extra_excludes = []
-    if any(v in last_user_msg for v in NEGATION_VERBS):
-        for item in retriever.catalog:
-            if item["name"].lower() in last_user_msg:
-                extra_excludes.append(item["name"])
+    for verb in NEGATION_VERBS:
+        search_from = 0
+        while True:
+            pos = last_user_msg.find(verb, search_from)
+            if pos == -1:
+                break
+            window_end = len(last_user_msg)
+            for punct in (".", ";", "\n"):
+                p = last_user_msg.find(punct, pos)
+                if p != -1:
+                    window_end = min(window_end, p)
+            window = last_user_msg[pos:window_end]
+            for item in retriever.catalog:
+                if item["name"].lower() in window:
+                    extra_excludes.append(item["name"])
+            search_from = pos + len(verb)
     exclude_names_combined = list(set((state.get("exclude_names") or []) + extra_excludes))
     
     results = retriever.search(
